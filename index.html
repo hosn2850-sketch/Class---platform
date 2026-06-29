@@ -354,7 +354,7 @@
         loadTeacherData(room);
         showMessage('✅ دخلت كمعلم في الغرفة ' + room, 'success');
     studentEnterBtn.addEventListener('click', function() {
-    alert('تم الضغط على زر الطالب!');  // <--- أضف هذا السطر
+    alert('تم الضغط على زر الطالب!');  
     const room = roomInput.value.trim();
     if (!room) { showMessage('⚠️ أدخل كود الغرفة', 'error'); return; }
     loadStudentData(room);
