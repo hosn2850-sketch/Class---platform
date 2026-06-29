@@ -353,15 +353,13 @@
         if (!room) { showMessage('⚠️ أدخل كود الغرفة', 'error'); return; }
         loadTeacherData(room);
         showMessage('✅ دخلت كمعلم في الغرفة ' + room, 'success');
-    });
-
     studentEnterBtn.addEventListener('click', function() {
-        const room = roomInput.value.trim();
-        if (!room) { showMessage('⚠️ أدخل كود الغرفة', 'error'); return; }
-        loadStudentData(room);
-        showMessage('✅ دخلت كطالب في الغرفة ' + room, 'success');
-    });
-
+    alert('تم الضغط على زر الطالب!');  // <--- أضف هذا السطر
+    const room = roomInput.value.trim();
+    if (!room) { showMessage('⚠️ أدخل كود الغرفة', 'error'); return; }
+    loadStudentData(room);
+    showMessage('✅ دخلت كطالب في الغرفة ' + room, 'success');
+});
     addBtn.addEventListener('click', function() {
         const text = questionInput.value.trim();
         if (!text) { showMessage('⚠️ اكتب السؤال أولاً', 'error'); return; }
