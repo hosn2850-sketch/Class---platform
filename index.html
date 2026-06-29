@@ -1,0 +1,391 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>منصة الدرس التفاعلية</title>
+    <!-- Firebase SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 20px; }
+        .container { max-width: 800px; width: 100%; background: white; border-radius: 24px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
+        h1 { font-size: 24px; color: #1a2b4c; margin-bottom: 20px; border-right: 5px solid #3b82f6; padding-right: 15px; }
+        label { font-weight: 600; display: block; margin-top: 15px; margin-bottom: 5px; font-size: 14px; }
+        input, textarea { width: 100%; padding: 10px 14px; border: 2px solid #e2e8f0; border-radius: 12px; font-size: 15px; font-family: inherit; margin-bottom: 5px; }
+        textarea { min-height: 100px; resize: vertical; }
+        .btn { border: none; padding: 10px 18px; border-radius: 30px; font-weight: 700; font-size: 14px; cursor: pointer; transition: 0.2s; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+        .btn-primary { background: #3b82f6; color: white; }
+        .btn-primary:hover { background: #2563eb; }
+        .btn-success { background: #10b981; color: white; }
+        .btn-success:hover { background: #059669; }
+        .btn-danger { background: #ef4444; color: white; }
+        .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+        .btn-outline { background: transparent; border: 2px solid #cbd5e1; color: #475569; }
+        .btn-outline:hover { background: #f1f5f9; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin: 10px 0; }
+        .room-box { background: #f8fafc; padding: 15px; border-radius: 14px; border: 2px solid #cbd5e1; display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+        .room-box input { flex: 2; min-width: 150px; margin: 0; }
+        .badge { background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 20px; font-size: 13px; display: inline-block; }
+        .badge-green { background: #d1fae5; color: #065f46; }
+        .question-area { background: #f8fafc; padding: 15px; border-radius: 14px; margin: 15px 0; border: 2px dashed #cbd5e1; }
+        .question-input-group { display: flex; gap: 10px; }
+        .question-input-group input { flex: 1; }
+        #questionsList { list-style: none; margin-top: 10px; }
+        #questionsList li { background: white; padding: 8px 14px; margin-bottom: 6px; border-radius: 10px; display: flex; justify-content: space-between; align-items: center; border: 1px solid #e2e8f0; }
+        .q-text { flex: 1; padding-left: 8px; }
+        .q-num { background: #e2e8f0; color: #334155; width: 24px; height: 24px; display: flex; align-items: center; justify-content: center; border-radius: 50%; font-size: 12px; font-weight: 700; margin-left: 8px; }
+        .summary-box { background: #f1f5f9; padding: 16px; border-radius: 14px; line-height: 1.8; margin: 10px 0 20px; white-space: pre-wrap; }
+        .student-question-item { background: white; padding: 12px 16px; margin-bottom: 10px; border-radius: 14px; border-right: 4px solid #3b82f6; }
+        .student-question-item .num { font-weight: 700; color: #3b82f6; margin-left: 8px; }
+        .answer-box { background: #f1f5f9; padding: 8px 12px; border-radius: 10px; margin-top: 6px; }
+        .answer-box textarea { width: 100%; padding: 8px; border-radius: 8px; border: 1px solid #cbd5e1; min-height: 40px; }
+        .answer-item { background: #e2e8f0; padding: 5px 10px; border-radius: 8px; margin: 4px 0; font-size: 14px; }
+        .hide { display: none; }
+        .msg { background: #fef9c3; color: #854d0e; padding: 10px; border-radius: 12px; margin: 10px 0; font-size: 14px; text-align: center; display: none; }
+        .msg.success { background: #dcfce7; color: #166534; display: block; }
+        .msg.error { background: #fee2e2; color: #991b1b; display: block; }
+        .student-view { display: none; }
+        .teacher-view { display: none; }
+        .mode-selector { display: flex; gap: 10px; margin-bottom: 15px; }
+        .mode-selector .btn { flex: 1; }
+        .teacher-view.active, .student-view.active { display: block; }
+        .answers-section { margin-top: 15px; border-top: 2px solid #e2e8f0; padding-top: 15px; }
+        .answer-item { background: #f1f5f9; padding: 6px 12px; border-radius: 8px; margin: 4px 0; }
+        @media (max-width: 600px) { .container { padding: 15px; } .question-input-group { flex-direction: column; } }
+    </style>
+</head>
+<body>
+<div class="container" id="app">
+    <h1>📘 منصة الدرس التفاعلية</h1>
+
+    <!-- اختيار الدور والغرفة -->
+    <div class="room-box">
+        <input type="text" id="roomInput" placeholder="كود الغرفة (مثال: phys3)" />
+        <button class="btn btn-primary" id="teacherEnterBtn">👨‍🏫 معلم - إنشاء/فتح</button>
+        <button class="btn btn-success" id="studentEnterBtn">🧑‍🎓 طالب - دخول</button>
+    </div>
+    <div id="statusMsg" class="msg"></div>
+
+    <!-- وضع المعلم -->
+    <div id="teacherMode" class="teacher-view">
+        <span class="badge">👩‍🏫 وضع المعلم - الغرفة: <span id="teacherRoomDisplay"></span></span>
+        <label>📖 عنوان الدرس</label>
+        <input type="text" id="lessonTitle" placeholder="مثال: درس الدفع" />
+        <label>📝 ملخص الدرس</label>
+        <textarea id="lessonSummary" placeholder="اكتب الملخص هنا..."></textarea>
+        <div class="question-area">
+            <label style="margin-top:0;">❓ أسئلة الواجب</label>
+            <div class="question-input-group">
+                <input type="text" id="questionInput" placeholder="اكتب السؤال..." />
+                <button class="btn btn-primary" id="addBtn">➕ أضف</button>
+            </div>
+            <ul id="questionsList"></ul>
+        </div>
+        <button class="btn btn-success" id="saveLessonBtn">💾 حفظ الدرس</button>
+        <div class="answers-section" id="answersSection">
+            <h4>📨 إجابات الطلاب</h4>
+            <div id="answersContainer">لا توجد إجابات بعد.</div>
+        </div>
+    </div>
+
+    <!-- وضع الطالب -->
+    <div id="studentMode" class="student-view">
+        <span class="badge">🧑‍🎓 وضع الطالب - الغرفة: <span id="studentRoomDisplay"></span></span>
+        <div id="studentTitle" class="h2" style="font-size:22px;margin-top:10px;">عنوان الدرس</div>
+        <div class="summary-box" id="studentSummary">الملخص...</div>
+        <div id="studentQuestions"></div>
+        <div id="studentAnswersStatus" style="margin-top:10px;color:#4b5563;"></div>
+    </div>
+</div>
+
+<script>
+    // ============================================================
+    // 1. تهيئة Firebase (استبدل بياناتك هنا)
+    // ============================================================
+    const firebaseConfig = {
+
+
+  apiKey: "AIzaSyBGHfqTJF-XE-sFTZeQa4H6hin7zD698YY",
+
+
+  authDomain: "learning-platform-3034b.firebaseapp.com",
+
+
+  databaseURL: "https://learning-platform-3034b-default-rtdb.europe-west1.firebasedatabase.app",
+
+
+  projectId: "learning-platform-3034b",
+
+
+  storageBucket: "learning-platform-3034b.firebasestorage.app",
+
+
+  messagingSenderId: "846645004823",
+
+
+  appId: "1:846645004823:web:8b90ced21fb6f468cdea52"
+
+
+};
+    firebase.initializeApp(firebaseConfig);
+    const database = firebase.database();
+
+    // ============================================================
+    // 2. متغيرات الحالة
+    // ============================================================
+    let currentRoom = '';
+    let currentMode = ''; // 'teacher' or 'student'
+    let questions = [];
+    let teacherRef = null;
+    let studentRef = null;
+    let answersListener = null;
+
+    // مراجع عناصر DOM
+    const roomInput = document.getElementById('roomInput');
+    const teacherEnterBtn = document.getElementById('teacherEnterBtn');
+    const studentEnterBtn = document.getElementById('studentEnterBtn');
+    const teacherModeDiv = document.getElementById('teacherMode');
+    const studentModeDiv = document.getElementById('studentMode');
+    const statusMsg = document.getElementById('statusMsg');
+    const teacherRoomDisplay = document.getElementById('teacherRoomDisplay');
+    const studentRoomDisplay = document.getElementById('studentRoomDisplay');
+    const lessonTitle = document.getElementById('lessonTitle');
+    const lessonSummary = document.getElementById('lessonSummary');
+    const questionInput = document.getElementById('questionInput');
+    const addBtn = document.getElementById('addBtn');
+    const questionsList = document.getElementById('questionsList');
+    const saveLessonBtn = document.getElementById('saveLessonBtn');
+    const answersContainer = document.getElementById('answersContainer');
+    const studentTitle = document.getElementById('studentTitle');
+    const studentSummary = document.getElementById('studentSummary');
+    const studentQuestions = document.getElementById('studentQuestions');
+    const studentAnswersStatus = document.getElementById('studentAnswersStatus');
+
+    // ============================================================
+    // 3. دوال مساعدة
+    // ============================================================
+    function showMessage(text, type = 'success') {
+        statusMsg.textContent = text;
+        statusMsg.className = 'msg ' + type;
+        statusMsg.style.display = 'block';
+        setTimeout(() => statusMsg.style.display = 'none', 5000);
+    }
+
+    function clearUI() {
+        // لا نمسح البيانات المحلية، فقط نزيل المستمعين
+        if (answersListener) { answersListener.off(); answersListener = null; }
+        if (teacherRef) { teacherRef.off(); teacherRef = null; }
+        if (studentRef) { studentRef.off(); studentRef = null; }
+    }
+
+    // ============================================================
+    // 4. دوال المعلم
+    // ============================================================
+    function loadTeacherData(room) {
+        clearUI();
+        currentRoom = room;
+        currentMode = 'teacher';
+        teacherModeDiv.classList.add('active');
+        studentModeDiv.classList.remove('active');
+        teacherRoomDisplay.textContent = room;
+        // مرجع بيانات المعلم لهذه الغرفة
+        teacherRef = database.ref('rooms/' + room + '/teacher');
+        // قراءة البيانات الموجودة
+        teacherRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (data) {
+                lessonTitle.value = data.title || '';
+                lessonSummary.value = data.summary || '';
+                if (data.questions) {
+                    questions = data.questions;
+                    renderQuestions();
+                }
+            } else {
+                // غرفة جديدة
+                lessonTitle.value = '';
+                lessonSummary.value = '';
+                questions = [];
+                renderQuestions();
+            }
+        });
+        // استماع لإجابات الطلاب
+        const answersRef = database.ref('rooms/' + room + '/answers');
+        answersListener = answersRef.on('value', snap => {
+            const all = snap.val();
+            if (!all) { answersContainer.innerHTML = 'لا توجد إجابات بعد.'; return; }
+            let html = '';
+            // each answer has key = studentId, value = { questionIndex: answer, ... }
+            // نعرضها بشكل منظم
+            const students = Object.keys(all);
+            if (students.length === 0) { answersContainer.innerHTML = 'لا توجد إجابات بعد.'; return; }
+            students.forEach(sid => {
+                const ans = all[sid];
+                html += `<div style="border-bottom:1px solid #e2e8f0;padding:6px 0;"><strong>طالب ${sid.substring(0,6)}:</strong>`;
+                // نعرض لكل سؤال إجابة
+                for (let i = 0; i < questions.length; i++) {
+                    const q = questions[i];
+                    const answerText = ans[i] || '(لم يجب)';
+                    html += `<div class="answer-item"><span style="font-weight:600;">س${i+1}:</span> ${answerText}</div>`;
+                }
+                html += '</div>';
+            });
+            answersContainer.innerHTML = html;
+        });
+    }
+
+    function renderQuestions() {
+        if (questions.length === 0) {
+            questionsList.innerHTML = '<li style="justify-content:center;color:#94a3b8;border:none;">📭 لا توجد أسئلة</li>';
+            return;
+        }
+        questionsList.innerHTML = questions.map((q, i) => `
+            <li>
+                <span class="q-num">${i+1}</span>
+                <span class="q-text">${escapeHtml(q.text)}</span>
+                <button class="btn btn-danger" onclick="removeQuestion(${i})">✖</button>
+            </li>
+        `).join('');
+    }
+
+    function escapeHtml(text) {
+        const d = document.createElement('div');
+        d.textContent = text;
+        return d.innerHTML;
+    }
+
+    window.removeQuestion = function(index) {
+        questions.splice(index, 1);
+        renderQuestions();
+        // لا نحفظ تلقائياً، ننتظر حفظ المستخدم
+    };
+
+    function saveLesson() {
+        if (!currentRoom) { showMessage('⚠️ حدد الغرفة أولاً', 'error'); return; }
+        const data = {
+            title: lessonTitle.value.trim(),
+            summary: lessonSummary.value.trim(),
+            questions: questions
+        };
+        database.ref('rooms/' + currentRoom + '/teacher').set(data)
+            .then(() => showMessage('✅ تم حفظ الدرس بنجاح', 'success'))
+            .catch(err => showMessage('❌ خطأ: ' + err.message, 'error'));
+    }
+
+    // ============================================================
+    // 5. دوال الطالب
+    // ============================================================
+    function loadStudentData(room) {
+        clearUI();
+        currentRoom = room;
+        currentMode = 'student';
+        studentModeDiv.classList.add('active');
+        teacherModeDiv.classList.remove('active');
+        studentRoomDisplay.textContent = room;
+        studentRef = database.ref('rooms/' + room + '/teacher');
+        studentRef.on('value', snapshot => {
+            const data = snapshot.val();
+            if (!data) {
+                studentTitle.textContent = '⚠️ لم ينشئ المعلم الدرس بعد.';
+                studentSummary.textContent = 'انتظر حتى يقوم المعلم بإضافة المحتوى.';
+                studentQuestions.innerHTML = '';
+                studentAnswersStatus.textContent = '';
+                return;
+            }
+            studentTitle.textContent = data.title || 'عنوان الدرس';
+            studentSummary.textContent = data.summary || 'لا يوجد ملخص.';
+            const qs = data.questions || [];
+            if (qs.length === 0) {
+                studentQuestions.innerHTML = '<p style="color:#94a3b8;">📭 لا توجد أسئلة.</p>';
+                studentAnswersStatus.innerHTML = '';
+                return;
+            }
+            let html = '';
+            qs.forEach((q, i) => {
+                html += `
+                    <div class="student-question-item">
+                        <div><span class="num">سؤال ${i+1}:</span> ${escapeHtml(q.text)}</div>
+                        <div class="answer-box">
+                            <textarea id="studentAns_${i}" placeholder="اكتب إجابتك هنا..." rows="2"></textarea>
+                        </div>
+                    </div>
+                `;
+            });
+            html += `<button class="btn btn-success" id="submitStudentAnswers" style="margin-top:10px;">📨 إرسال الإجابات</button>`;
+            studentQuestions.innerHTML = html;
+            // إضافة مستمع لزر الإرسال
+            document.getElementById('submitStudentAnswers').addEventListener('click', function() {
+                submitAnswers(qs.length);
+            });
+            studentAnswersStatus.textContent = '🔹 يمكنك إرسال إجاباتك (سيظهر تحديث للمعلم)';
+        });
+    }
+
+    function submitAnswers(numQuestions) {
+        const answers = {};
+        for (let i = 0; i < numQuestions; i++) {
+            const ta = document.getElementById('studentAns_' + i);
+            if (ta) {
+                answers[i] = ta.value.trim();
+            }
+        }
+        // نستخدم معرف مؤقت للطالب (نخزنه في localStorage)
+        let studentId = localStorage.getItem('studentId_' + currentRoom);
+        if (!studentId) {
+            studentId = 's_' + Date.now() + Math.random().toString(36).substring(2,6);
+            localStorage.setItem('studentId_' + currentRoom, studentId);
+        }
+        // نرسل إلى قاعدة البيانات
+        const ref = database.ref('rooms/' + currentRoom + '/answers/' + studentId);
+        ref.set(answers)
+            .then(() => showMessage('✅ تم إرسال إجاباتك بنجاح', 'success'))
+            .catch(err => showMessage('❌ خطأ: ' + err.message, 'error'));
+    }
+
+    // ============================================================
+    // 6. أحداث الأزرار
+    // ============================================================
+    teacherEnterBtn.addEventListener('click', function() {
+        const room = roomInput.value.trim();
+        if (!room) { showMessage('⚠️ أدخل كود الغرفة', 'error'); return; }
+        loadTeacherData(room);
+        showMessage('✅ دخلت كمعلم في الغرفة ' + room, 'success');
+    });
+
+    studentEnterBtn.addEventListener('click', function() {
+        const room = roomInput.value.trim();
+        if (!room) { showMessage('⚠️ أدخل كود الغرفة', 'error'); return; }
+        loadStudentData(room);
+        showMessage('✅ دخلت كطالب في الغرفة ' + room, 'success');
+    });
+
+    addBtn.addEventListener('click', function() {
+        const text = questionInput.value.trim();
+        if (!text) { showMessage('⚠️ اكتب السؤال أولاً', 'error'); return; }
+        questions.push({ text: text });
+        questionInput.value = '';
+        renderQuestions();
+        showMessage('✅ تمت إضافة السؤال', 'success');
+        // لا نحفظ تلقائياً، حفظ يدوي
+    });
+
+    saveLessonBtn.addEventListener('click', saveLesson);
+
+    // ============================================================
+    // 7. تهيئة الصفحة
+    // ============================================================
+    // نبدأ بوضع المعلم افتراضياً (لكن مخفي)
+    teacherModeDiv.classList.add('active');
+    studentModeDiv.classList.remove('active');
+    // نضيف رسالة تحذير إذا لم يتم تهيئة Firebase
+    if (firebaseConfig.apiKey === 'AIzaSy...') {
+        showMessage('⚠️ يرجى تهيئة Firebase في الكود (انظر تعليمات الإعداد)', 'error');
+    }
+
+    console.log('✅ التطبيق جاهز، استخدم كود الغرفة للتواصل.');
+</script>
+</body>
+</html>
