@@ -7,6 +7,7 @@
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
     <style>
+        /* نفس الأنماط السابقة، تم اختصارها هنا لتوفير المساحة */
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { font-family: 'Segoe UI', Tahoma, sans-serif; background: #f0f4f8; display: flex; justify-content: center; padding: 20px; }
         .container { max-width: 700px; width: 100%; background: white; border-radius: 24px; padding: 25px; box-shadow: 0 10px 30px rgba(0,0,0,0.08); }
@@ -23,6 +24,7 @@
         .btn-danger:hover { background: #dc2626; }
         .btn-warning { background: #f59e0b; color: white; }
         .btn-warning:hover { background: #d97706; }
+        .btn-sm { font-size: 12px; padding: 4px 12px; }
         .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
         .room-box { background: #f8fafc; padding: 15px; border-radius: 14px; border: 2px solid #cbd5e1; display: flex; gap: 10px; flex-wrap: wrap; }
         .room-box input { flex: 2; min-width: 150px; margin: 0; }
@@ -52,7 +54,10 @@
         .question-count { font-size: 13px; color: #4b5563; margin-top: 5px; }
         .danger-zone { background: #fee2e2; border: 2px solid #ef4444; border-radius: 14px; padding: 15px; margin-top: 15px; }
         .danger-zone h4 { color: #dc2626; margin-bottom: 10px; }
-        @media (max-width: 600px) { .container { padding: 15px; } .question-input-group { flex-direction: column; } .room-box { flex-direction: column; } .name-prompt .input-group { flex-direction: column; } }
+        .student-answer-row { border-bottom: 1px solid #e2e8f0; padding: 8px 0; }
+        .student-answer-row .flex-row { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; }
+        .teacher-msg { background: #d1fae5; padding: 6px 12px; border-radius: 8px; margin-top: 4px; color: #065f46; }
+        @media (max-width: 600px) { .container { padding: 15px; } .question-input-group { flex-direction: column; } .room-box { flex-direction: column; } .name-prompt .input-group { flex-direction: column; } .student-answer-row .flex-row { flex-direction: column; align-items: flex-start; gap: 8px; } }
     </style>
 </head>
 <body>
@@ -66,7 +71,7 @@
     </div>
     <div id="statusMsg" class="msg"></div>
 
-    <!-- وضع المعلم -->
+    <!-- ====== واجهة المعلم (سيتم إدارتها عبر JavaScript) ====== -->
     <div id="teacherMode" class="teacher-view">
         <span class="badge">👩‍🏫 المعلم - الغرفة: <span id="teacherRoom"></span></span>
         <label>📖 عنوان الدرس</label>
@@ -91,7 +96,6 @@
             <div id="answersContainer">لا توجد إجابات بعد.</div>
         </div>
 
-        <!-- ====== منطقة المسح الشامل ====== -->
         <div class="danger-zone">
             <h4>⚠️ منطقة المسح الشامل</h4>
             <p style="font-size:13px;color:#6b7280;margin-bottom:10px;">تحذير: هذه العمليات لا يمكن التراجع عنها!</p>
@@ -104,9 +108,10 @@
         </div>
     </div>
 
-    <!-- وضع الطالب -->
+    <!-- ====== واجهة الطالب ====== -->
     <div id="studentMode" class="student-view">
         <span class="badge">🧑‍🎓 الطالب - الغرفة: <span id="studentRoom"></span></span>
+        <div id="teacherMessageContainer" style="display:none;"></div>
         <div id="studentNamePrompt" class="name-prompt">
             <label style="font-weight:600;">👤 أدخل اسمك (سيظهر مع إجابتك):</label>
             <div class="input-group">
@@ -123,7 +128,12 @@
 
 <script>
     // ============================================================
-    // 1. تهيئة Firebase (ضع بياناتك هنا)
+    // 1. إعدادات التطبيق
+    // ============================================================
+    const TEACHER_PASSWORD = 'admin123';  // كلمة مرور المعلم
+
+    // ============================================================
+    // 2. تهيئة Firebase
     // ============================================================
     const firebaseConfig = {
 
@@ -158,7 +168,7 @@
     const db = firebase.database();
 
     // ============================================================
-    // 2. المتغيرات
+    // 3. المتغيرات العامة
     // ============================================================
     let currentRoom = '';
     let questions = [];
@@ -166,38 +176,25 @@
     let answerListener = null;
 
     // ============================================================
-    // 3. المراجع
+    // 4. المراجع الأساسية
     // ============================================================
     const roomInput = document.getElementById('roomInput');
     const teacherBtn = document.getElementById('teacherBtn');
     const studentBtn = document.getElementById('studentBtn');
-    const teacherMode = document.getElementById('teacherMode');
     const studentMode = document.getElementById('studentMode');
     const statusMsg = document.getElementById('statusMsg');
-    const teacherRoom = document.getElementById('teacherRoom');
     const studentRoom = document.getElementById('studentRoom');
-    const lessonTitle = document.getElementById('lessonTitle');
-    const lessonSummary = document.getElementById('lessonSummary');
-    const questionInput = document.getElementById('questionInput');
-    const addBtn = document.getElementById('addBtn');
-    const questionsList = document.getElementById('questionsList');
-    const questionCount = document.getElementById('questionCount');
-    const saveBtn = document.getElementById('saveBtn');
-    const answersContainer = document.getElementById('answersContainer');
     const studentTitle = document.getElementById('studentTitle');
     const studentSummary = document.getElementById('studentSummary');
     const studentQuestions = document.getElementById('studentQuestions');
     const studentStatus = document.getElementById('studentStatus');
-    const clearLocalBtn = document.getElementById('clearLocalBtn');
-    const clearQuestionsBtn = document.getElementById('clearQuestionsBtn');
-    const clearAnswersBtn = document.getElementById('clearAnswersBtn');
-    const clearAllBtn = document.getElementById('clearAllBtn');
     const namePrompt = document.getElementById('studentNamePrompt');
     const nameInput = document.getElementById('studentNameInput');
     const nameSubmitBtn = document.getElementById('studentNameSubmitBtn');
+    const teacherMsgContainer = document.getElementById('teacherMessageContainer');
 
     // ============================================================
-    // 4. دوال مساعدة
+    // 5. دوال مساعدة
     // ============================================================
     function showMsg(text, type = 'success') {
         statusMsg.textContent = text;
@@ -213,94 +210,280 @@
     }
 
     // ============================================================
-    // 5. المعلم
+    // 6. دوال إدارة واجهة المعلم (إنشاء/حذف)
+    // ============================================================
+    let teacherModeElement = null;
+
+    // دالة لإنشاء واجهة المعلم من جديد (تُستدعى عند دخول المعلم)
+    function createTeacherMode() {
+        // إذا كانت الواجهة موجودة بالفعل، لا نعيد إنشائها
+        if (document.getElementById('teacherMode')) return;
+
+        // نأخذ كود HTML الخاص بواجهة المعلم من متغير (سنخزنه في نهاية الكود)
+        const teacherHTML = `
+            <div id="teacherMode" class="teacher-view">
+                <span class="badge">👩‍🏫 المعلم - الغرفة: <span id="teacherRoom"></span></span>
+                <label>📖 عنوان الدرس</label>
+                <input type="text" id="lessonTitle" placeholder="مثال: درس الدفع" />
+                <label>📝 ملاحظات على الدرس</label>
+                <textarea id="lessonSummary" placeholder="اكتب الملاحظات هنا..."></textarea>
+                <div class="question-area">
+                    <label>❓ أسئلة الواجب</label>
+                    <div class="question-input-group">
+                        <input type="text" id="questionInput" placeholder="اكتب السؤال..." />
+                        <button class="btn btn-primary" id="addBtn">➕ أضف</button>
+                    </div>
+                    <div id="questionCount" class="question-count">📌 عدد الأسئلة: 0</div>
+                    <ul id="questionsList"></ul>
+                </div>
+                <button class="btn btn-success" id="saveBtn">💾 حفظ الدرس</button>
+                <div class="answers-section">
+                    <h4>📨 إجابات الطلاب</h4>
+                    <div id="answersContainer">لا توجد إجابات بعد.</div>
+                </div>
+                <div class="danger-zone">
+                    <h4>⚠️ منطقة المسح الشامل</h4>
+                    <p style="font-size:13px;color:#6b7280;margin-bottom:10px;">تحذير: هذه العمليات لا يمكن التراجع عنها!</p>
+                    <div class="btn-group">
+                        <button class="btn btn-danger" id="clearQuestionsBtn">🗑️ مسح الأسئلة</button>
+                        <button class="btn btn-danger" id="clearAnswersBtn">🗑️ مسح إجابات الطلاب</button>
+                        <button class="btn btn-warning" id="clearAllBtn">🔥 مسح شامل (الكل)</button>
+                        <button class="btn btn-danger" id="clearLocalBtn">🗑️ مسح بيانات الطالب المحلية</button>
+                    </div>
+                </div>
+            </div>
+        `;
+        // نضيف الواجهة بعد حقل إدخال الغرفة (room-box)
+        const roomBox = document.querySelector('.room-box');
+        roomBox.insertAdjacentHTML('afterend', teacherHTML);
+
+        // إعادة ربط الأحداث (لأن العناصر جديدة)
+        bindTeacherEvents();
+    }
+
+    // دالة لحذف واجهة المعلم من DOM (تُستدعى عند دخول الطالب)
+    function removeTeacherMode() {
+        const el = document.getElementById('teacherMode');
+        if (el) el.remove();
+    }
+
+    // دالة ربط أحداث واجهة المعلم (تُستدعى بعد إنشائها)
+    function bindTeacherEvents() {
+        // المراجع الجديدة
+        const teacherMode = document.getElementById('teacherMode');
+        const teacherRoom = document.getElementById('teacherRoom');
+        const lessonTitle = document.getElementById('lessonTitle');
+        const lessonSummary = document.getElementById('lessonSummary');
+        const questionInput = document.getElementById('questionInput');
+        const addBtn = document.getElementById('addBtn');
+        const questionsList = document.getElementById('questionsList');
+        const questionCount = document.getElementById('questionCount');
+        const saveBtn = document.getElementById('saveBtn');
+        const answersContainer = document.getElementById('answersContainer');
+        const clearQuestionsBtn = document.getElementById('clearQuestionsBtn');
+        const clearAnswersBtn = document.getElementById('clearAnswersBtn');
+        const clearAllBtn = document.getElementById('clearAllBtn');
+        const clearLocalBtn = document.getElementById('clearLocalBtn');
+
+        // تعيين المراجع في النطاق العام للدوال الأخرى
+        window.teacherMode = teacherMode;
+        window.teacherRoom = teacherRoom;
+        window.lessonTitle = lessonTitle;
+        window.lessonSummary = lessonSummary;
+        window.questionInput = questionInput;
+        window.addBtn = addBtn;
+        window.questionsList = questionsList;
+        window.questionCount = questionCount;
+        window.saveBtn = saveBtn;
+        window.answersContainer = answersContainer;
+
+        // إعادة تعريف الدوال (لأنها مرتبطة بالعناصر الجديدة)
+        window.renderQuestions = function() {
+            questionCount.textContent = '📌 عدد الأسئلة: ' + questions.length;
+            if (!questions.length) {
+                questionsList.innerHTML = '<li style="color:#94a3b8;border:none;">📭 لا توجد أسئلة</li>';
+                return;
+            }
+            questionsList.innerHTML = questions.map((q, i) => `
+                <li>
+                    <span class="q-num">${i+1}</span>
+                    <span class="q-text">${escapeHtml(q.text)}</span>
+                    <button class="btn btn-danger btn-sm" onclick="removeQ(${i})">✖</button>
+                </li>
+            `).join('');
+        };
+
+        window.removeQ = function(index) {
+            questions.splice(index, 1);
+            renderQuestions();
+            showMsg('🗑️ تم حذف السؤال', 'success');
+        };
+
+        window.saveLesson = function() {
+            if (!currentRoom) { showMsg('⚠️ حدد الغرفة أولاً', 'error'); return; }
+            db.ref('rooms/' + currentRoom + '/teacher').set({
+                title: lessonTitle.value.trim(),
+                summary: lessonSummary.value.trim(),
+                questions: questions
+            }).then(() => showMsg('✅ تم حفظ الدرس بنجاح')).catch(err => showMsg('❌ خطأ: ' + err.message, 'error'));
+        };
+
+        // ربط الأحداث
+        addBtn.onclick = function() {
+            const text = questionInput.value.trim();
+            if (!text) { showMsg('⚠️ اكتب السؤال أولاً', 'error'); return; }
+            questions.push({ text });
+            questionInput.value = '';
+            renderQuestions();
+            showMsg('✅ تمت إضافة السؤال (العدد الآن: ' + questions.length + ')', 'success');
+            questionInput.focus();
+        };
+
+        saveBtn.onclick = saveLesson;
+
+        clearQuestionsBtn.onclick = function() {
+            if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
+            if (!confirm('🗑️ مسح جميع الأسئلة من هذه الغرفة؟')) return;
+            questions = [];
+            renderQuestions();
+            showMsg('✅ تم مسح جميع الأسئلة');
+        };
+
+        clearAnswersBtn.onclick = function() {
+            if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
+            if (!confirm('🗑️ مسح جميع إجابات الطلاب من قاعدة البيانات؟')) return;
+            db.ref('rooms/' + currentRoom + '/answers').remove()
+                .then(() => showMsg('✅ تم مسح إجابات الطلاب'))
+                .catch(err => showMsg('❌ خطأ: ' + err.message, 'error'));
+        };
+
+        clearAllBtn.onclick = function() {
+            if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
+            if (!confirm('🔥 تحذير: هذا سيحذف كل شيء في هذه الغرفة!\n- جميع الأسئلة\n- جميع إجابات الطلاب\n- بيانات الطلاب المحفوظة\n\nهل أنت متأكد؟')) return;
+            questions = [];
+            renderQuestions();
+            db.ref('rooms/' + currentRoom + '/answers').remove().catch(err => console.error(err));
+            localStorage.removeItem('studentName_' + currentRoom);
+            localStorage.removeItem('studentId_' + currentRoom);
+            lessonTitle.value = '';
+            lessonSummary.value = '';
+            answersContainer.innerHTML = 'لا توجد إجابات.';
+            showMsg('🔥 تم مسح كل شيء في هذه الغرفة بنجاح!', 'success');
+        };
+
+        clearLocalBtn.onclick = function() {
+            if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
+            if (!confirm('🗑️ مسح بيانات الطالب المحفوظة (الاسم والمعرف)؟')) return;
+            localStorage.removeItem('studentName_' + currentRoom);
+            localStorage.removeItem('studentId_' + currentRoom);
+            showMsg('✅ تم مسح البيانات المحلية');
+            if (studentMode.style.display === 'block') {
+                loadStudent(currentRoom);
+            }
+        };
+
+        // استدعاء loadTeacher (الذي سيظهر الواجهة ويربط المستمعات)
+        loadTeacher(currentRoom);
+    }
+
+    // ============================================================
+    // 7. دوال المعلم (المعدلة)
     // ============================================================
     function loadTeacher(room) {
+        // حذف المستمعات القديمة
         if (teacherListener) { teacherListener.off(); teacherListener = null; }
         if (answerListener) { answerListener.off(); answerListener = null; }
 
         currentRoom = room;
-        teacherMode.style.display = 'block';
+        // إظهار واجهة المعلم
+        const teacherMode = document.getElementById('teacherMode');
+        if (teacherMode) teacherMode.style.display = 'block';
         studentMode.style.display = 'none';
-        teacherRoom.textContent = room;
 
+        // تعيين رقم الغرفة
+        const teacherRoom = document.getElementById('teacherRoom');
+        if (teacherRoom) teacherRoom.textContent = room;
+
+        // استماع لبيانات المعلم
         teacherListener = db.ref('rooms/' + room + '/teacher');
         teacherListener.on('value', snap => {
             const data = snap.val();
+            const titleInput = document.getElementById('lessonTitle');
+            const summaryInput = document.getElementById('lessonSummary');
             if (data) {
-                lessonTitle.value = data.title || '';
-                lessonSummary.value = data.summary || '';
+                if (titleInput) titleInput.value = data.title || '';
+                if (summaryInput) summaryInput.value = data.summary || '';
                 questions = data.questions || [];
                 renderQuestions();
             } else {
-                lessonTitle.value = '';
-                lessonSummary.value = '';
+                if (titleInput) titleInput.value = '';
+                if (summaryInput) summaryInput.value = '';
                 questions = [];
                 renderQuestions();
             }
         });
 
+        // استماع لإجابات الطلاب
         answerListener = db.ref('rooms/' + room + '/answers');
         answerListener.on('value', snap => {
             const all = snap.val();
-            if (!all) { answersContainer.innerHTML = 'لا توجد إجابات.'; return; }
+            const container = document.getElementById('answersContainer');
+            if (!all) { container.innerHTML = 'لا توجد إجابات.'; return; }
             let html = '';
             Object.keys(all).forEach(sid => {
                 const entry = all[sid];
                 const name = entry.name || 'طالب';
                 const ans = entry.answers || {};
-                html += `<div style="border-bottom:1px solid #e2e8f0;padding:6px 0;"><strong>👤 ${name}</strong>`;
+                const msg = entry.teacherMessage || '';
+                
+                html += `<div class="student-answer-row">`;
+                html += `<div class="flex-row">`;
+                html += `<strong>👤 ${escapeHtml(name)}</strong>`;
+                html += `<button class="btn btn-primary btn-sm" onclick="openThankMessage('${room}', '${sid}')">💬 شكر</button>`;
+                html += `</div>`;
+                
                 for (let i = 0; i < questions.length; i++) {
-                    html += `<div class="answer-item">س${i+1}: ${ans[i] || '(لم يجب)'}</div>`;
+                    html += `<div class="answer-item">س${i+1}: ${escapeHtml(ans[i] || '(لم يجب)')}</div>`;
+                }
+                
+                if (msg) {
+                    html += `<div class="teacher-msg">💌 رسالة المعلم: ${escapeHtml(msg)}</div>`;
                 }
                 html += '</div>';
             });
-            answersContainer.innerHTML = html;
+            container.innerHTML = html;
         });
     }
 
-    function renderQuestions() {
-        questionCount.textContent = '📌 عدد الأسئلة: ' + questions.length;
-        if (!questions.length) {
-            questionsList.innerHTML = '<li style="color:#94a3b8;border:none;">📭 لا توجد أسئلة</li>';
+    // دالة فتح رسالة الشكر (تعريف عام)
+    window.openThankMessage = function(room, studentId) {
+        const message = prompt('✏️ اكتب رسالة شكر للطالب:');
+        if (message === null) return;
+        if (message.trim() === '') {
+            alert('⚠️ الرسالة لا يمكن أن تكون فارغة');
             return;
         }
-        questionsList.innerHTML = questions.map((q, i) => `
-            <li>
-                <span class="q-num">${i+1}</span>
-                <span class="q-text">${escapeHtml(q.text)}</span>
-                <button class="btn btn-danger" onclick="removeQ(${i})">✖</button>
-            </li>
-        `).join('');
-    }
-
-    window.removeQ = function(index) {
-        questions.splice(index, 1);
-        renderQuestions();
-        showMsg('🗑️ تم حذف السؤال', 'success');
+        db.ref('rooms/' + room + '/answers/' + studentId + '/teacherMessage').set(message.trim())
+            .then(() => showMsg('✅ تم إرسال رسالة الشكر للطالب', 'success'))
+            .catch(err => showMsg('❌ خطأ: ' + err.message, 'error'));
     };
 
-    function saveLesson() {
-        if (!currentRoom) { showMsg('⚠️ حدد الغرفة أولاً', 'error'); return; }
-        db.ref('rooms/' + currentRoom + '/teacher').set({
-            title: lessonTitle.value.trim(),
-            summary: lessonSummary.value.trim(),
-            questions: questions
-        }).then(() => showMsg('✅ تم حفظ الدرس بنجاح')).catch(err => showMsg('❌ خطأ: ' + err.message, 'error'));
-    }
-
     // ============================================================
-    // 6. الطالب
+    // 8. دوال الطالب (المعدلة)
     // ============================================================
     function loadStudent(room) {
+        // حذف المستمعات القديمة
         if (teacherListener) { teacherListener.off(); teacherListener = null; }
         if (answerListener) { answerListener.off(); answerListener = null; }
 
         currentRoom = room;
-        teacherMode.style.display = 'none';
+        // إخفاء واجهة المعلم وحذفها من DOM
+        removeTeacherMode();
+        // إظهار واجهة الطالب
         studentMode.style.display = 'block';
         studentRoom.textContent = room;
 
+        // التحقق من اسم الطالب
         let studentName = localStorage.getItem('studentName_' + room);
 
         if (studentName) {
@@ -391,73 +574,41 @@
             studentStatus.textContent = '';
             console.error(err);
         });
+
+        // الاستماع لرسائل المعلم
+        const studentId = localStorage.getItem('studentId_' + room);
+        if (studentId) {
+            db.ref('rooms/' + room + '/answers/' + studentId + '/teacherMessage').on('value', snap => {
+                const msg = snap.val();
+                if (msg) {
+                    teacherMsgContainer.innerHTML = `<div style="background:#d1fae5; padding:12px 16px; border-radius:12px; border-right:4px solid #10b981; margin:10px 0;">
+                        💌 <strong>رسالة من المعلم:</strong> ${escapeHtml(msg)}
+                    </div>`;
+                    teacherMsgContainer.style.display = 'block';
+                } else {
+                    teacherMsgContainer.style.display = 'none';
+                }
+            });
+        }
     }
 
     // ============================================================
-    // 7. أزرار المسح
-    // ============================================================
-    
-    // 7.1 مسح الأسئلة فقط (من الذاكرة المحلية)
-    clearQuestionsBtn.onclick = function() {
-        if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
-        if (!confirm('🗑️ مسح جميع الأسئلة من هذه الغرفة؟')) return;
-        questions = [];
-        renderQuestions();
-        showMsg('✅ تم مسح جميع الأسئلة');
-    };
-
-    // 7.2 مسح إجابات الطلاب (من قاعدة البيانات)
-    clearAnswersBtn.onclick = function() {
-        if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
-        if (!confirm('🗑️ مسح جميع إجابات الطلاب من قاعدة البيانات؟')) return;
-        db.ref('rooms/' + currentRoom + '/answers').remove()
-            .then(() => showMsg('✅ تم مسح إجابات الطلاب'))
-            .catch(err => showMsg('❌ خطأ: ' + err.message, 'error'));
-    };
-
-    // 7.3 مسح شامل (كل شيء)
-    clearAllBtn.onclick = function() {
-        if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
-        if (!confirm('🔥 تحذير: هذا سيحذف كل شيء في هذه الغرفة!\n- جميع الأسئلة\n- جميع إجابات الطلاب\n- بيانات الطلاب المحفوظة\n\nهل أنت متأكد؟')) return;
-        
-        // 1. مسح الأسئلة من الذاكرة المحلية
-        questions = [];
-        renderQuestions();
-        
-        // 2. مسح إجابات الطلاب من قاعدة البيانات
-        db.ref('rooms/' + currentRoom + '/answers').remove()
-            .catch(err => console.error('خطأ في مسح الإجابات:', err));
-        
-        // 3. مسح بيانات الطالب المحفوظة
-        localStorage.removeItem('studentName_' + currentRoom);
-        localStorage.removeItem('studentId_' + currentRoom);
-        
-        // 4. إعادة تحميل الواجهة
-        lessonTitle.value = '';
-        lessonSummary.value = '';
-        answersContainer.innerHTML = 'لا توجد إجابات.';
-        
-        showMsg('🔥 تم مسح كل شيء في هذه الغرفة بنجاح!', 'success');
-    };
-
-    // 7.4 مسح بيانات الطالب المحلية (الاسم والمعرف)
-    clearLocalBtn.onclick = function() {
-        if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
-        if (!confirm('🗑️ مسح بيانات الطالب المحفوظة (الاسم والمعرف)؟')) return;
-        localStorage.removeItem('studentName_' + currentRoom);
-        localStorage.removeItem('studentId_' + currentRoom);
-        showMsg('✅ تم مسح البيانات المحلية');
-        if (studentMode.style.display === 'block') {
-            loadStudent(currentRoom);
-        }
-    };
-
-    // ============================================================
-    // 8. أحداث الأزرار الأساسية
+    // 9. أحداث الأزرار الأساسية
     // ============================================================
     teacherBtn.onclick = function() {
         const room = roomInput.value.trim();
         if (!room) { showMsg('⚠️ أدخل كود الغرفة', 'error'); return; }
+        
+        const password = prompt('🔐 أدخل كلمة مرور المعلم للدخول:');
+        if (password === null) return;
+        if (password !== TEACHER_PASSWORD) {
+            showMsg('❌ كلمة المرور غير صحيحة!', 'error');
+            return;
+        }
+        
+        // إنشاء واجهة المعلم (إذا لم تكن موجودة)
+        createTeacherMode();
+        // تحميل البيانات
         loadTeacher(room);
         showMsg('✅ دخلت كمعلم في الغرفة ' + room);
     };
@@ -469,22 +620,11 @@
         showMsg('✅ دخلت كطالب في الغرفة ' + room);
     };
 
-    addBtn.onclick = function() {
-        const text = questionInput.value.trim();
-        if (!text) { showMsg('⚠️ اكتب السؤال أولاً', 'error'); return; }
-        questions.push({ text });
-        questionInput.value = '';
-        renderQuestions();
-        showMsg('✅ تمت إضافة السؤال (العدد الآن: ' + questions.length + ')', 'success');
-        questionInput.focus();
-    };
-
-    saveBtn.onclick = saveLesson;
-
     // ============================================================
-    // 9. بدء التشغيل
+    // 10. بدء التشغيل
     // ============================================================
-    teacherMode.style.display = 'none';
+    // في البداية، نأكد إخفاء واجهة المعلم وحذفها
+    removeTeacherMode();
     studentMode.style.display = 'none';
     if (firebaseConfig.apiKey === 'AIzaSy...') {
         showMsg('⚠️ يرجى تهيئة Firebase في الكود (انظر تعليمات الإعداد)', 'error');
