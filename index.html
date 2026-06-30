@@ -21,6 +21,9 @@
         .btn-success:hover { background: #059669; }
         .btn-danger { background: #ef4444; color: white; }
         .btn-danger:hover { background: #dc2626; }
+        .btn-warning { background: #f59e0b; color: white; }
+        .btn-warning:hover { background: #d97706; }
+        .btn-group { display: flex; gap: 10px; flex-wrap: wrap; margin-top: 10px; }
         .room-box { background: #f8fafc; padding: 15px; border-radius: 14px; border: 2px solid #cbd5e1; display: flex; gap: 10px; flex-wrap: wrap; }
         .room-box input { flex: 2; min-width: 150px; margin: 0; }
         .badge { background: #dbeafe; color: #1e40af; padding: 4px 12px; border-radius: 20px; font-size: 13px; display: inline-block; }
@@ -46,6 +49,9 @@
         .name-prompt { background: #f8fafc; padding: 15px; border-radius: 14px; margin: 10px 0; display: none; border: 2px solid #3b82f6; }
         .name-prompt .input-group { display: flex; gap: 10px; margin-top: 8px; }
         .name-prompt .input-group input { flex: 1; margin: 0; }
+        .question-count { font-size: 13px; color: #4b5563; margin-top: 5px; }
+        .danger-zone { background: #fee2e2; border: 2px solid #ef4444; border-radius: 14px; padding: 15px; margin-top: 15px; }
+        .danger-zone h4 { color: #dc2626; margin-bottom: 10px; }
         @media (max-width: 600px) { .container { padding: 15px; } .question-input-group { flex-direction: column; } .room-box { flex-direction: column; } .name-prompt .input-group { flex-direction: column; } }
     </style>
 </head>
@@ -65,32 +71,47 @@
         <span class="badge">👩‍🏫 المعلم - الغرفة: <span id="teacherRoom"></span></span>
         <label>📖 عنوان الدرس</label>
         <input type="text" id="lessonTitle" placeholder="مثال: درس الدفع" />
-        <label>📝 ملخص الدرس</label>
-        <textarea id="lessonSummary" placeholder="اكتب الملخص هنا..."></textarea>
+        <label>📝 ملاحظات على الدرس</label>
+        <textarea id="lessonSummary" placeholder="اكتب الملاحظات هنا..."></textarea>
+        
         <div class="question-area">
             <label>❓ أسئلة الواجب</label>
             <div class="question-input-group">
                 <input type="text" id="questionInput" placeholder="اكتب السؤال..." />
                 <button class="btn btn-primary" id="addBtn">➕ أضف</button>
             </div>
+            <div id="questionCount" class="question-count">📌 عدد الأسئلة: 0</div>
             <ul id="questionsList"></ul>
         </div>
+        
         <button class="btn btn-success" id="saveBtn">💾 حفظ الدرس</button>
+        
         <div class="answers-section">
             <h4>📨 إجابات الطلاب</h4>
             <div id="answersContainer">لا توجد إجابات بعد.</div>
         </div>
-        <button class="btn btn-danger" id="clearLocalBtn" style="margin-top:10px;">🗑️ مسح بيانات الطالب</button>
+
+        <!-- ====== منطقة المسح الشامل ====== -->
+        <div class="danger-zone">
+            <h4>⚠️ منطقة المسح الشامل</h4>
+            <p style="font-size:13px;color:#6b7280;margin-bottom:10px;">تحذير: هذه العمليات لا يمكن التراجع عنها!</p>
+            <div class="btn-group">
+                <button class="btn btn-danger" id="clearQuestionsBtn">🗑️ مسح الأسئلة</button>
+                <button class="btn btn-danger" id="clearAnswersBtn">🗑️ مسح إجابات الطلاب</button>
+                <button class="btn btn-warning" id="clearAllBtn">🔥 مسح شامل (الكل)</button>
+                <button class="btn btn-danger" id="clearLocalBtn">🗑️ مسح بيانات الطالب المحلية</button>
+            </div>
+        </div>
     </div>
 
     <!-- وضع الطالب -->
     <div id="studentMode" class="student-view">
         <span class="badge">🧑‍🎓 الطالب - الغرفة: <span id="studentRoom"></span></span>
-        <div id="namePrompt" class="name-prompt">
+        <div id="studentNamePrompt" class="name-prompt">
             <label style="font-weight:600;">👤 أدخل اسمك (سيظهر مع إجابتك):</label>
             <div class="input-group">
                 <input type="text" id="studentNameInput" placeholder="مثال: أحمد محمد" />
-                <button class="btn btn-primary" id="nameSubmitBtn">✅ حفظ الاسم</button>
+                <button class="btn btn-primary" id="studentNameSubmitBtn">✅ حفظ الاسم</button>
             </div>
         </div>
         <div id="studentTitle" style="font-size:22px;margin-top:10px;"></div>
@@ -129,6 +150,10 @@
 
 
 };
+
+
+
+
     firebase.initializeApp(firebaseConfig);
     const db = firebase.database();
 
@@ -156,6 +181,7 @@
     const questionInput = document.getElementById('questionInput');
     const addBtn = document.getElementById('addBtn');
     const questionsList = document.getElementById('questionsList');
+    const questionCount = document.getElementById('questionCount');
     const saveBtn = document.getElementById('saveBtn');
     const answersContainer = document.getElementById('answersContainer');
     const studentTitle = document.getElementById('studentTitle');
@@ -163,9 +189,12 @@
     const studentQuestions = document.getElementById('studentQuestions');
     const studentStatus = document.getElementById('studentStatus');
     const clearLocalBtn = document.getElementById('clearLocalBtn');
-    const namePrompt = document.getElementById('namePrompt');
-    const studentNameInput = document.getElementById('studentNameInput');
-    const nameSubmitBtn = document.getElementById('nameSubmitBtn');
+    const clearQuestionsBtn = document.getElementById('clearQuestionsBtn');
+    const clearAnswersBtn = document.getElementById('clearAnswersBtn');
+    const clearAllBtn = document.getElementById('clearAllBtn');
+    const namePrompt = document.getElementById('studentNamePrompt');
+    const nameInput = document.getElementById('studentNameInput');
+    const nameSubmitBtn = document.getElementById('studentNameSubmitBtn');
 
     // ============================================================
     // 4. دوال مساعدة
@@ -184,7 +213,7 @@
     }
 
     // ============================================================
-    // 5. المعلم (يعمل ببساطة)
+    // 5. المعلم
     // ============================================================
     function loadTeacher(room) {
         if (teacherListener) { teacherListener.off(); teacherListener = null; }
@@ -195,7 +224,6 @@
         studentMode.style.display = 'none';
         teacherRoom.textContent = room;
 
-        // قراءة بيانات المعلم
         teacherListener = db.ref('rooms/' + room + '/teacher');
         teacherListener.on('value', snap => {
             const data = snap.val();
@@ -212,7 +240,6 @@
             }
         });
 
-        // قراءة إجابات الطلاب
         answerListener = db.ref('rooms/' + room + '/answers');
         answerListener.on('value', snap => {
             const all = snap.val();
@@ -233,6 +260,7 @@
     }
 
     function renderQuestions() {
+        questionCount.textContent = '📌 عدد الأسئلة: ' + questions.length;
         if (!questions.length) {
             questionsList.innerHTML = '<li style="color:#94a3b8;border:none;">📭 لا توجد أسئلة</li>';
             return;
@@ -249,6 +277,7 @@
     window.removeQ = function(index) {
         questions.splice(index, 1);
         renderQuestions();
+        showMsg('🗑️ تم حذف السؤال', 'success');
     };
 
     function saveLesson() {
@@ -261,7 +290,7 @@
     }
 
     // ============================================================
-    // 6. الطالب (الحل المبني على once() لتجنب التعليق)
+    // 6. الطالب
     // ============================================================
     function loadStudent(room) {
         if (teacherListener) { teacherListener.off(); teacherListener = null; }
@@ -279,10 +308,9 @@
             fetchStudentData(room);
         } else {
             namePrompt.style.display = 'block';
-            studentNameInput.value = '';
-            // تجنب تراكم المستمعات
+            nameInput.value = '';
             nameSubmitBtn.onclick = function() {
-                const name = studentNameInput.value.trim();
+                const name = nameInput.value.trim();
                 if (!name) { alert('الرجاء كتابة اسمك'); return; }
                 localStorage.setItem('studentName_' + room, name);
                 namePrompt.style.display = 'none';
@@ -301,7 +329,6 @@
         studentQuestions.innerHTML = '';
         studentStatus.textContent = '';
 
-        // استخدام once() لجلب البيانات (كما نجح في الاختبار)
         db.ref('rooms/' + room + '/teacher').once('value').then(snapshot => {
             const data = snapshot.val();
 
@@ -313,9 +340,8 @@
                 return;
             }
 
-            // عرض البيانات
             studentTitle.textContent = data.title || 'عنوان الدرس';
-            studentSummary.textContent = data.summary || 'لا يوجد ملخص.';
+            studentSummary.textContent = data.summary || 'لا يوجد ملاحظات.';
             const qs = data.questions || [];
 
             if (!qs.length) {
@@ -339,7 +365,6 @@
             studentQuestions.innerHTML = html;
             studentStatus.textContent = '🔹 يمكنك إرسال إجاباتك (سيظهر تحديث للمعلم)';
 
-            // زر الإرسال
             const submitBtn = document.getElementById('submitBtn');
             submitBtn.onclick = function() {
                 const answers = {};
@@ -369,7 +394,66 @@
     }
 
     // ============================================================
-    // 7. أحداث الأزرار
+    // 7. أزرار المسح
+    // ============================================================
+    
+    // 7.1 مسح الأسئلة فقط (من الذاكرة المحلية)
+    clearQuestionsBtn.onclick = function() {
+        if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
+        if (!confirm('🗑️ مسح جميع الأسئلة من هذه الغرفة؟')) return;
+        questions = [];
+        renderQuestions();
+        showMsg('✅ تم مسح جميع الأسئلة');
+    };
+
+    // 7.2 مسح إجابات الطلاب (من قاعدة البيانات)
+    clearAnswersBtn.onclick = function() {
+        if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
+        if (!confirm('🗑️ مسح جميع إجابات الطلاب من قاعدة البيانات؟')) return;
+        db.ref('rooms/' + currentRoom + '/answers').remove()
+            .then(() => showMsg('✅ تم مسح إجابات الطلاب'))
+            .catch(err => showMsg('❌ خطأ: ' + err.message, 'error'));
+    };
+
+    // 7.3 مسح شامل (كل شيء)
+    clearAllBtn.onclick = function() {
+        if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
+        if (!confirm('🔥 تحذير: هذا سيحذف كل شيء في هذه الغرفة!\n- جميع الأسئلة\n- جميع إجابات الطلاب\n- بيانات الطلاب المحفوظة\n\nهل أنت متأكد؟')) return;
+        
+        // 1. مسح الأسئلة من الذاكرة المحلية
+        questions = [];
+        renderQuestions();
+        
+        // 2. مسح إجابات الطلاب من قاعدة البيانات
+        db.ref('rooms/' + currentRoom + '/answers').remove()
+            .catch(err => console.error('خطأ في مسح الإجابات:', err));
+        
+        // 3. مسح بيانات الطالب المحفوظة
+        localStorage.removeItem('studentName_' + currentRoom);
+        localStorage.removeItem('studentId_' + currentRoom);
+        
+        // 4. إعادة تحميل الواجهة
+        lessonTitle.value = '';
+        lessonSummary.value = '';
+        answersContainer.innerHTML = 'لا توجد إجابات.';
+        
+        showMsg('🔥 تم مسح كل شيء في هذه الغرفة بنجاح!', 'success');
+    };
+
+    // 7.4 مسح بيانات الطالب المحلية (الاسم والمعرف)
+    clearLocalBtn.onclick = function() {
+        if (!currentRoom) { showMsg('⚠️ لا توجد غرفة مفتوحة', 'error'); return; }
+        if (!confirm('🗑️ مسح بيانات الطالب المحفوظة (الاسم والمعرف)؟')) return;
+        localStorage.removeItem('studentName_' + currentRoom);
+        localStorage.removeItem('studentId_' + currentRoom);
+        showMsg('✅ تم مسح البيانات المحلية');
+        if (studentMode.style.display === 'block') {
+            loadStudent(currentRoom);
+        }
+    };
+
+    // ============================================================
+    // 8. أحداث الأزرار الأساسية
     // ============================================================
     teacherBtn.onclick = function() {
         const room = roomInput.value.trim();
@@ -391,23 +475,14 @@
         questions.push({ text });
         questionInput.value = '';
         renderQuestions();
-        showMsg('✅ تمت إضافة السؤال');
+        showMsg('✅ تمت إضافة السؤال (العدد الآن: ' + questions.length + ')', 'success');
+        questionInput.focus();
     };
 
     saveBtn.onclick = saveLesson;
 
-    clearLocalBtn.onclick = function() {
-        if (!confirm('مسح بيانات الطالب المحفوظة (الاسم والمعرف)؟')) return;
-        localStorage.removeItem('studentName_' + currentRoom);
-        localStorage.removeItem('studentId_' + currentRoom);
-        showMsg('✅ تم مسح البيانات المحلية');
-        if (studentMode.style.display === 'block') {
-            loadStudent(currentRoom);
-        }
-    };
-
     // ============================================================
-    // 8. بدء التشغيل
+    // 9. بدء التشغيل
     // ============================================================
     teacherMode.style.display = 'none';
     studentMode.style.display = 'none';
